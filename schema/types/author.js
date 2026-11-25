@@ -6,8 +6,6 @@ const {
   GraphQLList,
 } = require("graphql");
 
-const { books } = require("../../db");
-
 const AuthorType = new GraphQLObjectType({
   name: "Author",
   fields: () => {
@@ -19,8 +17,7 @@ const AuthorType = new GraphQLObjectType({
       country: { type: GraphQLString },
       books: {
         type: new GraphQLList(BookType),
-        resolve: (author) =>
-          books.filter((book) => book.authorId === author.id),
+        resolve: (author) => author.getBooks(),
       },
     };
   },

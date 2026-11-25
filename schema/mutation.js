@@ -5,7 +5,8 @@ const {
   GraphQLError,
 } = require("graphql");
 const jwt = require("jsonwebtoken");
-const { books, users, getNextBookId, findAuthor } = require("../db");
+const bcrypt = require("bcrypt");
+const { User, Author } = require("../models");
 const { JWT_SECRET, requireUser } = require("../middleware/auth");
 const BookType = require("./types/book");
 const CreateBookInput = require("./inputs/create-book-input");
@@ -19,13 +20,14 @@ const MutationType = new GraphQLObjectType({
         username: { type: new GraphQLNonNull(GraphQLString) },
         password: { type: new GraphQLNonNull(GraphQLString) },
       },
-      resolve: (_, args) => {
-        const user = users.find(
-          (user) =>
-            user.password === args.password && user.username === args.username,
-        );
+      resolve: async (_, args) => {
+        const user = await User.findOne({
+          where: {
+            username: args.username,
+          },
+        });
 
-        if (!user) {
+        if (!user || !(await bcrypt.compare(args.password, user.password))) {
           throw new GraphQLError("Invalid username or password!");
         }
 
@@ -41,24 +43,17 @@ const MutationType = new GraphQLObjectType({
     createBook: {
       type: BookType,
       args: { input: { type: new GraphQLNonNull(CreateBookInput) } },
-      resolve: (parent, args, context) => {
+      resolve: async (parent, args, context) => {
         requireUser(context);
 
         const { title, authorId, year, genre } = args.input;
 
-        if (!findAuthor(authorId)) {
+        const author = await Author.findByPk(authorId);
+        if (!author) {
           throw new GraphQLError(`Author with id ${authorId} does not exist!`);
         }
 
-        const newBook = {
-          id: getNextBookId(),
-          title,
-          authorId: Number(authorId),
-          year,
-          genre,
-        };
-        books.push(newBook);
-        return newBook;
+        return author.createBook({ title, year, genre });
       },
     },
   },
